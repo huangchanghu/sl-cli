@@ -17,8 +17,8 @@ var cfgFile string
 var rootCmd = &cobra.Command{
 	Use:   "sl-cli",
 	Short: "sl-cli 是一个极具扩展性的命令行工具",
-	Long: `sl-cli 是一个用 Go 编写的命令行工具，
-支持通过 YAML 配置动态扩展 RESTful API、Shell 脚本和系统命令。`,
+	Long: `sl-cli (Super Link CLI) 是一个高度可扩展的现代命令行工具，旨在成为你日常工作流的“超级粘合剂”。
+它采用 Go 原生代码 + YAML 动态配置 的混合驱动模式。你既可以通过编写 Go 代码开发高性能的核心命令，也可以通过修改配置文件瞬间挂载 RESTful API、Shell 脚本或系统命令别名，而无需重新编译。`,
 }
 
 // Execute 是主入口
