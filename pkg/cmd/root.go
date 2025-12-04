@@ -60,11 +60,8 @@ func initConfig() {
 
 	viper.AutomaticEnv()
 
-	// 忽略错误，因为如果没配置文件，我们只运行静态命令即可
-	if err := viper.ReadInConfig(); err != nil {
-		fmt.Println("Failed to load config file:", viper.ConfigFileUsed())
-		fmt.Println(err)
-	}
+	// 读取配置文件，忽略错误，因为如果没配置文件，我们只运行静态命令即可
+	viper.ReadInConfig()
 }
 
 // loadDynamicCommands 读取配置并构建命令树
