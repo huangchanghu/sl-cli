@@ -1,26 +1,43 @@
 commands:
-  # 测试 HTTP
-  - name: "myip"
-    usage: "Get my public IP (HTTP Mock)"
+  # 1. 测试 HTTP GET (带参数)
+  # 使用方法: ./sl-cli ip
+  - name: "ip"
+    usage: "查询当前公网 IP"
     type: "http"
     api:
       url: "https://httpbin.org/ip"
       method: "GET"
-      headers:
-        Authorization: "Bearer TestToken"
 
-  # 测试 Shell
-  - name: "hello-shell"
-    usage: "Say Hello (Shell Mock)"
+  # 2. 测试 HTTP POST (带参数和 Header)
+  # 使用方法: ./sl-cli echo "Hello World"
+  - name: "echo"
+    usage: "测试 HTTP Post"
+    type: "http"
+    api:
+      url: "https://httpbin.org/post"
+      method: "POST"
+      headers:
+        X-Custom-Header: "sl-cli-client"
+      body: '{"message": "{{index .args 0}}"}' # 获取第一个参数
+
+  # 3. 测试 Shell (带参数)
+  # 使用方法: ./sl-cli greet "Mike"
+  - name: "greet"
+    usage: "Shell 脚本问候"
     type: "shell"
     script: |
-      echo "Hello from sl-cli!"
+      echo "Start Shell Script..."
+      NAME="{{index .args 0}}"
+      if [ -z "$NAME" ]; then
+        echo "Hello, Stranger!"
+      else
+        echo "Hello, $NAME!"
+      fi
 
-  # 测试嵌套子命令
-  - name: "dev"
-    usage: "Developer tools"
-    subcommands:
-      - name: "info"
-        usage: "Show info"
-        type: "shell"
-        script: "echo 'Dev Info'"
+  # 4. 测试 System 命令 (透传参数)
+  # 使用方法: ./sl-cli ls -la
+  - name: "ls"
+    usage: "列出当前目录文件"
+    type: "system"
+    command: "ls"
+    args: ["-G"] # Mac 上 -G 启用彩色输出

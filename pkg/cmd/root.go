@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"sl-cli/internal/config"
+	"sl-cli/internal/executor"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -86,16 +87,19 @@ func buildCommand(cfg config.CommandConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   cfg.Name,
 		Short: cfg.Usage,
+		// DisableFlagParsing: true, // 可选：如果希望由 shell/system 接管所有参数解析，可以开启此项
 		Run: func(c *cobra.Command, args []string) {
-			// Step 3 Mock Output
-			fmt.Printf("[Mock Execute] Type: %s\n", cfg.Type)
-			if cfg.Type == "http" {
-				fmt.Printf("Target URL: %s\n", cfg.API.URL)
-				fmt.Printf("Headers: %v\n", cfg.API.Headers)
-			} else if cfg.Type == "shell" {
-				fmt.Println("Script Content:\n", cfg.Script)
+			if err := executor.Run(cfg, args); err != nil {
+				fmt.Printf("Execution failed: %s\n", err)
+				os.Exit(1)
 			}
 		},
+	}
+
+	// 对于 system 和 shell 类型，禁用 Cobra 的标志解析
+	// 这样 -la 这种参数就会被原样放入 args 切片中，而不是被 Cobra 拦截报错
+	if cfg.Type == "system" || cfg.Type == "shell" {
+		cmd.DisableFlagParsing = true
 	}
 
 	for _, subCfg := range cfg.SubCommands {
