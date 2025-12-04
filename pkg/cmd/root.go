@@ -23,7 +23,7 @@ var rootCmd = &cobra.Command{
 
 // Execute 是主入口
 func Execute() {
-	// 1. 【核心修正】在执行命令前，主动加载配置和动态命令
+	// 在执行命令前，主动加载配置和动态命令
 	// 注意：此时 Cobra 还没解析命令行参数，所以 --config 标志暂时无法生效
 	// 它会优先读取默认路径（当前目录或 Home 目录）下的配置文件
 	initConfig()
@@ -61,9 +61,9 @@ func initConfig() {
 	viper.AutomaticEnv()
 
 	// 忽略错误，因为如果没配置文件，我们只运行静态命令即可
-	if err := viper.ReadInConfig(); err == nil {
-		// 仅在调试时打开，避免干扰正常输出
-		// fmt.Println("Using config file:", viper.ConfigFileUsed())
+	if err := viper.ReadInConfig(); err != nil {
+		fmt.Println("Failed to load config file:", viper.ConfigFileUsed())
+		fmt.Println(err)
 	}
 }
 

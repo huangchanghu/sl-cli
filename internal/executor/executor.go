@@ -77,8 +77,40 @@ func runHTTP(cfg config.CommandConfig, args []string) error {
 	}
 	defer resp.Body.Close()
 
-	// 6. 输出结果到终端
-	// 这里直接输出原始 Body，未来可以优化为 JSON Pretty Print
+	// 只有状态码为 2xx 时才认为是“成功”，才执行管道命令
+	// 否则直接输出错误信息或原始 Body，避免 jq 解析 HTML 报错
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		fmt.Printf("HTTP Request failed with status: %d %s\n", resp.StatusCode, resp.Status)
+		// 依然输出 Body 以便调试错误信息
+		_, _ = io.Copy(os.Stdout, resp.Body)
+		return fmt.Errorf("http request failed")
+	}
+
+	// 处理管道逻辑
+	if cfg.API.Pipe.Command != "" {
+		// 准备管道命令参数（支持环境变量替换）
+		pipeCmdName := cfg.API.Pipe.Command
+		var pipeArgs []string
+		for _, arg := range cfg.API.Pipe.Args {
+			pipeArgs = append(pipeArgs, os.ExpandEnv(arg))
+		}
+
+		// 创建系统命令
+		cmd := exec.Command(pipeCmdName, pipeArgs...)
+
+		// 【关键】将 HTTP Response Body 直接接入命令的标准输入
+		cmd.Stdin = resp.Body
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		// 执行管道命令
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("pipe execution failed: %w", err)
+		}
+		return nil
+	}
+
+	// 未配置管道命令，直接输出原始 Body
 	_, err = io.Copy(os.Stdout, resp.Body)
 	fmt.Println()
 	return err

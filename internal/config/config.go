@@ -30,4 +30,11 @@ type APIConfig struct {
 	Headers     map[string]string `mapstructure:"headers"` // 支持 Header
 	QueryParams map[string]string `mapstructure:"query_params"`
 	Body        string            `mapstructure:"body"`
+	Pipe        PipeConfig        `mapstructure:"pipe"`
+}
+
+// PipeConfig 定义后续处理命令
+type PipeConfig struct {
+	Command string   `mapstructure:"command"`
+	Args    []string `mapstructure:"args"`
 }
