@@ -9,8 +9,11 @@ import (
 	"os/exec"
 	"strings"
 	"text/template"
+	"time"
 
 	"sl-cli/internal/config"
+
+	"github.com/briandowns/spinner"
 )
 
 // Run 根据配置类型执行具体的逻辑
@@ -59,9 +62,16 @@ func runHTTP(cfg config.CommandConfig, args []string) error {
 		req.Header.Set(k, expandedVal)
 	}
 
+	// 启动 Spinner ---
+	s := spinner.New(spinner.CharSets[14], 100*time.Millisecond) // 14号是常用的点点点风格
+	s.Suffix = fmt.Sprintf(" Requesting %s...", url)
+	s.Color("cyan") // Mac 终端对 cyan 支持很好
+	s.Start()
+
 	// 5. 发送请求
 	client := &http.Client{}
 	resp, err := client.Do(req)
+	s.Stop()
 	if err != nil {
 		return err
 	}
@@ -70,6 +80,7 @@ func runHTTP(cfg config.CommandConfig, args []string) error {
 	// 6. 输出结果到终端
 	// 这里直接输出原始 Body，未来可以优化为 JSON Pretty Print
 	_, err = io.Copy(os.Stdout, resp.Body)
+	fmt.Println()
 	return err
 }
 
