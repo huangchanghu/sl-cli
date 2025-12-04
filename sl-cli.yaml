@@ -1,0 +1,26 @@
+commands:
+  # 测试 HTTP
+  - name: "myip"
+    usage: "Get my public IP (HTTP Mock)"
+    type: "http"
+    api:
+      url: "https://httpbin.org/ip"
+      method: "GET"
+      headers:
+        Authorization: "Bearer TestToken"
+
+  # 测试 Shell
+  - name: "hello-shell"
+    usage: "Say Hello (Shell Mock)"
+    type: "shell"
+    script: |
+      echo "Hello from sl-cli!"
+
+  # 测试嵌套子命令
+  - name: "dev"
+    usage: "Developer tools"
+    subcommands:
+      - name: "info"
+        usage: "Show info"
+        type: "shell"
+        script: "echo 'Dev Info'"
