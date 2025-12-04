@@ -62,3 +62,23 @@ else
 	@echo "⚠️  Shell '$(SHELL_TYPE)' not fully supported for auto-install."
 	@echo "Please run '$(BINARY_NAME) completion --help' to install manually."
 endif
+
+uninstall:
+	@echo "Uninstalling $(BINARY_NAME)..."
+	@# 1. 删除二进制文件
+	@sudo rm -f $(INSTALL_PATH)/$(BINARY_NAME)
+	@echo "  - Removed binary"
+	
+	@# 2. 删除 Zsh 补全脚本
+	@sudo rm -f /usr/local/share/zsh/site-functions/_$(BINARY_NAME)
+	@echo "  - Removed Zsh completion"
+	
+	@# 3. 删除 Bash 补全脚本
+	@sudo rm -f /usr/local/etc/bash_completion.d/$(BINARY_NAME)
+	@echo "  - Removed Bash completion"
+	
+	@# 4. 删除 Man pages (删除 sl-cli.1 以及 sl-cli-xxx.1 所有子命令文档)
+	@sudo rm -f $(MAN_PATH)/$(BINARY_NAME)*.1
+	@echo "  - Removed Man pages"
+	
+	@echo "✅ Uninstallation complete."
