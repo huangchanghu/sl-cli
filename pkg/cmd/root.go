@@ -3,6 +3,8 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"sl-cli/internal/config"
 	"sl-cli/internal/executor"
@@ -23,9 +25,7 @@ var rootCmd = &cobra.Command{
 
 // Execute 是主入口
 func Execute() {
-	// 在执行命令前，主动加载配置和动态命令
-	// 注意：此时 Cobra 还没解析命令行参数，所以 --config 标志暂时无法生效
-	// 它会优先读取默认路径（当前目录或 Home 目录）下的配置文件
+	preParseConfigFlag() // 解析--config配置文件
 	initConfig()
 	loadDynamicCommands()
 
@@ -33,6 +33,26 @@ func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
+	}
+}
+
+// 简单的 Flag 预解析器
+func preParseConfigFlag() {
+	if cfgFile != "" {
+		return
+	}
+	args := os.Args
+	for i, arg := range args {
+		// 检查 --config /path 格式
+		if arg == "--config" && i+1 < len(args) {
+			cfgFile = args[i+1]
+			break
+		}
+		// 检查 --config=/path 格式
+		if strings.HasPrefix(arg, "--config=") {
+			cfgFile = strings.TrimPrefix(arg, "--config=")
+			break
+		}
 	}
 }
 
@@ -52,10 +72,24 @@ func initConfig() {
 			os.Exit(1)
 		}
 
-		viper.AddConfigPath(home)
-		viper.AddConfigPath(".") // 搜索当前目录
+		currentDirConfig := "sl-cli.yaml"
+		homeDirDotConfig := filepath.Join(home, ".sl-cli.yaml")
+
+		if _, err := os.Stat(currentDirConfig); err == nil {
+			// 发现当前目录下有 sl-cli.yaml
+			viper.SetConfigFile(currentDirConfig)
+		} else if _, err := os.Stat(homeDirDotConfig); err == nil {
+			// 发现 Home 目录下有 .sl-cli.yaml
+			viper.SetConfigFile(homeDirDotConfig)
+		} else {
+			// 兜底策略：如果上面都没找到，保持原来的搜索逻辑
+			// 这样可以支持 $HOME/sl-cli.yaml (非隐藏)
+			viper.AddConfigPath(".")
+			viper.AddConfigPath(home)
+			viper.SetConfigName("sl-cli")
+		}
+
 		viper.SetConfigType("yaml")
-		viper.SetConfigName("sl-cli") // 兼容 sl-cli.yaml 或 .sl-cli.yaml
 	}
 
 	viper.AutomaticEnv()
