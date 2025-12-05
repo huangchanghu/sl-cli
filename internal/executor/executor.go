@@ -98,7 +98,11 @@ func runHTTP(cfg config.CommandConfig, args []string) error {
 			cmdName := pipeCfg.Command
 			var cmdArgs []string
 			for _, arg := range pipeCfg.Args {
-				cmdArgs = append(cmdArgs, os.ExpandEnv(arg))
+				tmplArg, err := renderTemplate(arg, args)
+				if err != nil {
+					return fmt.Errorf("failed to render pipe arg '%s': %w", arg, err)
+				}
+				cmdArgs = append(cmdArgs, os.ExpandEnv(tmplArg))
 			}
 
 			cmd := exec.Command(cmdName, cmdArgs...)
