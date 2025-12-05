@@ -86,27 +86,60 @@ func runHTTP(cfg config.CommandConfig, args []string) error {
 		return fmt.Errorf("http request failed")
 	}
 
-	// 处理管道逻辑
-	if cfg.API.Pipe.Command != "" {
-		// 准备管道命令参数（支持环境变量替换）
-		pipeCmdName := cfg.API.Pipe.Command
-		var pipeArgs []string
-		for _, arg := range cfg.API.Pipe.Args {
-			pipeArgs = append(pipeArgs, os.ExpandEnv(arg))
+	// 多级管道处理逻辑
+	if len(cfg.API.Pipes) > 0 {
+		var cmds []*exec.Cmd
+
+		// currentStdin 作为一个“接力棒”，初始值为 HTTP Response Body
+		var currentStdin io.Reader = resp.Body
+
+		for i, pipeCfg := range cfg.API.Pipes {
+			// 1. 准备命令参数 (支持环境变量)
+			cmdName := pipeCfg.Command
+			var cmdArgs []string
+			for _, arg := range pipeCfg.Args {
+				cmdArgs = append(cmdArgs, os.ExpandEnv(arg))
+			}
+
+			cmd := exec.Command(cmdName, cmdArgs...)
+
+			// 2. 链接输入流
+			cmd.Stdin = currentStdin
+
+			// 3. 错误流统一输出到标准错误，方便调试
+			cmd.Stderr = os.Stderr
+
+			// 4. 链接输出流
+			if i < len(cfg.API.Pipes)-1 {
+				// 如果不是最后一个命令，创建一个管道作为下一个命令的输入
+				stdoutPipe, err := cmd.StdoutPipe()
+				if err != nil {
+					return fmt.Errorf("failed to create stdout pipe for %s: %w", cmdName, err)
+				}
+				currentStdin = stdoutPipe // 将接力棒传给下一位
+			} else {
+				// 如果是最后一个命令，直接输出到终端
+				cmd.Stdout = os.Stdout
+			}
+
+			cmds = append(cmds, cmd)
 		}
 
-		// 创建系统命令
-		cmd := exec.Command(pipeCmdName, pipeArgs...)
-
-		// 【关键】将 HTTP Response Body 直接接入命令的标准输入
-		cmd.Stdin = resp.Body
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-
-		// 执行管道命令
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("pipe execution failed: %w", err)
+		// 5. 依次启动所有命令
+		// 注意：必须先全部 Start，再 Wait，才能形成流式处理
+		for _, cmd := range cmds {
+			if err := cmd.Start(); err != nil {
+				return fmt.Errorf("failed to start command %s: %w", cmd.Path, err)
+			}
 		}
+
+		// 6. 等待所有命令执行完成
+		for _, cmd := range cmds {
+			if err := cmd.Wait(); err != nil {
+				return fmt.Errorf("command execution failed: %w", err)
+			}
+		}
+
 		return nil
 	}
 

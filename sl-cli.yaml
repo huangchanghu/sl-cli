@@ -43,13 +43,16 @@ commands:
     args: ["-G"] # Mac 上 -G 启用彩色输出
     # 5. 测试管道功能
     # 使用方法: ./sl-cli weather-fmt "London"
-  - name: "weather-fmt"
+  - name: "weather"
     usage: "查询天气并用 jq 格式化输出"
     type: "http"
     api:
       url: "https://goweather.herokuapp.com/weather/{{index .args 0}}"
       method: "GET"
       # 新增 pipe 配置
-      pipe:
-        command: "jq"
-        args: [".temperature", "-r"] # "." 表示格式化整个 JSON，也可以用 ".temperature" 提取字段
+      pipes:
+        - command: "jq"
+          args: ["."] # "." 表示格式化整个 JSON，也可以用 ".temperature" 提取字段
+        - command: "grep"
+          args: ["temperature"]
+

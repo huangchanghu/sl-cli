@@ -22,7 +22,6 @@ var checkCmd = &cobra.Command{
 	Short: "检查配置文件的语法和逻辑错误",
 	Run: func(cmd *cobra.Command, args []string) {
 		// 1. 尝试查找并读取配置
-		// 注意：root.go 中的 initConfig 已经运行过，但我们需要显式获取错误信息
 		if err := viper.ReadInConfig(); err != nil {
 			if _, ok := err.(viper.ConfigFileNotFoundError); ok {
 				fmt.Println("❌ Config file not found.")
@@ -42,40 +41,15 @@ var checkCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		// 3. 逻辑校验 (Validate Logic)
+		// 3. 递归逻辑校验
 		errCount := 0
 		for i, c := range cfg.Commands {
-			if c.Name == "" {
-				fmt.Printf("❌ Error in command #%d: 'name' is required.\n", i+1)
-				errCount++
-				continue // 名字都没有，没法继续报错
+			// 顶层命令路径直接用名字，如果没有名字则用索引
+			cmdName := c.Name
+			if cmdName == "" {
+				cmdName = fmt.Sprintf("Command#%d", i+1)
 			}
-
-			// 校验类型
-			validTypes := map[string]bool{"http": true, "shell": true, "system": true}
-			if !validTypes[c.Type] && len(c.SubCommands) == 0 {
-				fmt.Printf("❌ Error in command '%s': Invalid type '%s'. Must be http, shell, or system.\n", c.Name, c.Type)
-				errCount++
-			}
-
-			// 校验具体字段
-			switch c.Type {
-			case "http":
-				if c.API.URL == "" {
-					fmt.Printf("❌ Error in command '%s': Type is http but 'api.url' is missing.\n", c.Name)
-					errCount++
-				}
-			case "shell":
-				if c.Script == "" {
-					fmt.Printf("❌ Error in command '%s': Type is shell but 'script' is missing.\n", c.Name)
-					errCount++
-				}
-			case "system":
-				if c.Command == "" {
-					fmt.Printf("❌ Error in command '%s': Type is system but 'command' is missing.\n", c.Name)
-					errCount++
-				}
-			}
+			errCount += validateCommand(c, cmdName)
 		}
 
 		if errCount > 0 {
@@ -85,6 +59,73 @@ var checkCmd = &cobra.Command{
 
 		fmt.Println("✅ Configuration is valid! All systems go.")
 	},
+}
+
+// validateCommand 递归校验命令配置
+// c: 当前命令配置
+// path: 命令路径面包屑，例如 "dev -> info"
+func validateCommand(c config.CommandConfig, path string) int {
+	errs := 0
+
+	// 1. 基础校验：Name 必须存在
+	if c.Name == "" {
+		fmt.Printf("❌ Error in [%s]: 'name' is required.\n", path)
+		errs++
+		// 如果名字都没有，path 也是构造出来的，继续校验意义不大，但在递归中最好继续检查子项
+	}
+
+	// 2. 结构校验：必须是 "有效的功能命令" 或者 "包含子命令的组"
+	// 如果没有 Type 且没有 SubCommands，那就是个空壳
+	if c.Type == "" && len(c.SubCommands) == 0 {
+		fmt.Printf("❌ Error in [%s]: Must specify 'type' (http/shell/system) OR have 'subcommands'.\n", path)
+		errs++
+	}
+
+	// 3. 类型校验 (如果指定了 Type)
+	if c.Type != "" {
+		validTypes := map[string]bool{"http": true, "shell": true, "system": true}
+		if !validTypes[c.Type] {
+			fmt.Printf("❌ Error in [%s]: Invalid type '%s'. Must be http, shell, or system.\n", path, c.Type)
+			errs++
+		}
+
+		// 4. 字段校验 (根据 Type)
+		switch c.Type {
+		case "http":
+			if c.API.URL == "" {
+				fmt.Printf("❌ Error in [%s]: Type is http but 'api.url' is missing.\n", path)
+				errs++
+			}
+			// 校验 Pipes
+			for idx, p := range c.API.Pipes {
+				if p.Command == "" {
+					fmt.Printf("❌ Error in [%s]: Pipe #%d missing 'command'.\n", path, idx+1)
+					errs++
+				}
+			}
+		case "shell":
+			if c.Script == "" {
+				fmt.Printf("❌ Error in [%s]: Type is shell but 'script' is missing.\n", path)
+				errs++
+			}
+		case "system":
+			if c.Command == "" {
+				fmt.Printf("❌ Error in [%s]: Type is system but 'command' is missing.\n", path)
+				errs++
+			}
+		}
+	}
+
+	// 5. 递归校验子命令
+	for _, sub := range c.SubCommands {
+		subPath := path + " -> " + sub.Name
+		if sub.Name == "" {
+			subPath = path + " -> [Unnamed]"
+		}
+		errs += validateCommand(sub, subPath)
+	}
+
+	return errs
 }
 
 // initCmd 用于生成示例配置文件
@@ -98,6 +139,7 @@ var initCmd = &cobra.Command{
 			return
 		}
 
+		// 写入文件时使用 0644 权限
 		if err := os.WriteFile(filename, []byte(defaultConfigContent), 0o644); err != nil {
 			fmt.Printf("❌ Failed to write file: %s\n", err)
 			return
@@ -109,15 +151,12 @@ var initCmd = &cobra.Command{
 }
 
 func init() {
-	// 挂载子命令
 	configCmd.AddCommand(checkCmd)
 	configCmd.AddCommand(initCmd)
-
-	// 挂载到 root
 	rootCmd.AddCommand(configCmd)
 }
 
-// 嵌入的默认配置文件内容
+// 嵌入的默认配置文件内容 (已修正 pipes 格式)
 const defaultConfigContent = `
 # sl-cli Configuration File
 # -------------------------
@@ -138,7 +177,7 @@ commands:
       #   Authorization: "Bearer ${MY_TOKEN}"
 
   # ------------------------------------------------------------------
-  # Example 2: HTTP with Pipe (JSON Processing)
+  # Example 2: HTTP with Pipes (Chained Processing)
   # ------------------------------------------------------------------
   - name: "weather"
     usage: "Get weather for a city (usage: sl-cli weather London)"
@@ -146,10 +185,12 @@ commands:
     api:
       url: "https://goweather.herokuapp.com/weather/{{index .args 0}}"
       method: "GET"
-      # Pipe the output to 'jq' for pretty printing
-      pipe:
-        command: "jq"
-        args: ["."]
+      # Pipeline: API Response -> jq -> grep -> Stdout
+      pipes:
+        - command: "jq"
+          args: ["."]
+        - command: "grep"
+          args: ["temperature"]
 
   # ------------------------------------------------------------------
   # Example 3: Shell Script
