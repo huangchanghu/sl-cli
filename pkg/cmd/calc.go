@@ -30,5 +30,6 @@ var calcCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(calcCmd)
+	// 注册命令
+	// rootCmd.AddCommand(calcCmd)
 }
