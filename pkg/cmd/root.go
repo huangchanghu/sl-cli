@@ -109,7 +109,20 @@ func loadDynamicCommands() {
 
 	for _, cmdCfg := range cfg.Commands {
 		cmd := buildCommand(cmdCfg)
-		rootCmd.AddCommand(cmd)
+		// 重复添加的命令丢弃，如果有子命令则将子命令追加到已存在命令的字命令中
+		deplicated := false
+		for _, c := range rootCmd.Commands() {
+			if c.Name() != cmd.Name() {
+				continue
+			}
+			deplicated = true
+			if cmd.HasSubCommands() {
+				c.AddCommand(cmd.Commands()...)
+			}
+		}
+		if !deplicated {
+			rootCmd.AddCommand(cmd)
+		}
 	}
 }
 

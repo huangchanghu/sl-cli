@@ -56,3 +56,11 @@ commands:
         - command: "grep"
           args: ["temperature"]
 
+  - name: "config"
+    usage: "配置文件管理"
+    subcommands:
+      - name: "show"
+        usage: "查看配置文件"
+        type: "system"
+        command: "bat"
+        args: ["$HOME/.sl-cli.yaml"]

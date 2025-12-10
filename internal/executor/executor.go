@@ -161,7 +161,7 @@ func runShell(cfg config.CommandConfig, args []string) error {
 	if err != nil {
 		return err
 	}
-	scriptContent = os.ExpandEnv(scriptContent)
+	// scriptContent = os.ExpandEnv(scriptContent)
 
 	// 默认使用 sh -c 执行
 	cmd := exec.Command("/bin/sh", "-c", scriptContent)
@@ -181,7 +181,13 @@ func runSystem(cfg config.CommandConfig, args []string) error {
 	// 例如配置: git log; 输入: sl-cli git-log -n 5
 	// 最终执行: git log -n 5
 
-	finalArgs := append(cfg.Args, args...)
+	finalArgs := make([]string, 0, len(cfg.Args)+len(args))
+	for _, arg := range cfg.Args {
+		finalArgs = append(finalArgs, os.ExpandEnv(arg))
+	}
+	for _, arg := range args {
+		finalArgs = append(finalArgs, os.ExpandEnv(arg))
+	}
 
 	cmd := exec.Command(cfg.Command, finalArgs...)
 	cmd.Stdin = os.Stdin
