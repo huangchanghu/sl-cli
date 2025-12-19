@@ -17,14 +17,14 @@ import (
 )
 
 // Run 根据配置类型执行具体的逻辑
-func Run(cfg config.CommandConfig, args []string) error {
+func Run(cfg config.CommandConfig, args []string, vars map[string]string) error {
 	switch cfg.Type {
 	case "http":
-		return runHTTP(cfg, args)
+		return runHTTP(cfg, args, vars)
 	case "shell":
-		return runShell(cfg, args)
+		return runShell(cfg, args, vars)
 	case "system":
-		return runSystem(cfg, args)
+		return runSystem(cfg, args, vars)
 	default:
 		return fmt.Errorf("unknown command type: %s", cfg.Type)
 	}
@@ -32,9 +32,12 @@ func Run(cfg config.CommandConfig, args []string) error {
 
 // ================= HTTP Processor =================
 
-func runHTTP(cfg config.CommandConfig, args []string) error {
-	// 1. 处理 URL 模板 (支持 {{.args.0}} 和 ${ENV})
-	url, err := renderTemplate(cfg.API.URL, args)
+func runHTTP(cfg config.CommandConfig, args []string, vars map[string]string) error {
+	// 0. 准备变量
+	resolvedVars := resolveVars(vars, args)
+
+	// 1. 处理 URL 模板 (支持 {{.args.0}}, {{.vars.KEY}}, ${ENV})
+	url, err := renderTemplate(cfg.API.URL, args, resolvedVars)
 	if err != nil {
 		return fmt.Errorf("render url error: %w", err)
 	}
@@ -43,7 +46,7 @@ func runHTTP(cfg config.CommandConfig, args []string) error {
 	// 2. 处理 Body
 	bodyStr := ""
 	if cfg.API.Body != "" {
-		bodyStr, err = renderTemplate(cfg.API.Body, args)
+		bodyStr, err = renderTemplate(cfg.API.Body, args, resolvedVars)
 		if err != nil {
 			return fmt.Errorf("render body error: %w", err)
 		}
@@ -98,7 +101,7 @@ func runHTTP(cfg config.CommandConfig, args []string) error {
 			cmdName := pipeCfg.Command
 			var cmdArgs []string
 			for _, arg := range pipeCfg.Args {
-				tmplArg, err := renderTemplate(arg, args)
+				tmplArg, err := renderTemplate(arg, args, resolvedVars)
 				if err != nil {
 					return fmt.Errorf("failed to render pipe arg '%s': %w", arg, err)
 				}
@@ -155,9 +158,10 @@ func runHTTP(cfg config.CommandConfig, args []string) error {
 
 // ================= Shell Processor =================
 
-func runShell(cfg config.CommandConfig, args []string) error {
+func runShell(cfg config.CommandConfig, args []string, vars map[string]string) error {
+	resolvedVars := resolveVars(vars, args)
 	// 允许在脚本中使用模板参数，例如 echo {{.args.0}}
-	scriptContent, err := renderTemplate(cfg.Script, args)
+	scriptContent, err := renderTemplate(cfg.Script, args, resolvedVars)
 	if err != nil {
 		return err
 	}
@@ -176,7 +180,7 @@ func runShell(cfg config.CommandConfig, args []string) error {
 
 // ================= System Processor =================
 
-func runSystem(cfg config.CommandConfig, args []string) error {
+func runSystem(cfg config.CommandConfig, args []string, vars map[string]string) error {
 	// System 模式下，配置中的 Args 是基础参数，命令行输入的 args 追加在后面
 	// 例如配置: git log; 输入: sl-cli git-log -n 5
 	// 最终执行: git log -n 5
@@ -199,7 +203,7 @@ func runSystem(cfg config.CommandConfig, args []string) error {
 
 // ================= Helper: Template Rendering =================
 
-func renderTemplate(tplStr string, args []string) (string, error) {
+func renderTemplate(tplStr string, args []string, vars map[string]string) (string, error) {
 	if tplStr == "" {
 		return "", nil
 	}
@@ -207,6 +211,7 @@ func renderTemplate(tplStr string, args []string) (string, error) {
 	// 准备模板数据
 	data := map[string]interface{}{
 		"args": args,
+		"vars": vars,
 	}
 
 	tmpl, err := template.New("cmd").Parse(tplStr)
@@ -219,4 +224,22 @@ func renderTemplate(tplStr string, args []string) (string, error) {
 		return "", err
 	}
 	return buf.String(), nil
+}
+
+// resolveVars expands environment variables in the global vars map
+func resolveVars(vars map[string]string, args []string) map[string]string {
+	resolved := make(map[string]string)
+	for k, v := range vars {
+		// support env var expansion
+		val := os.ExpandEnv(v)
+		// we could also support template execution here, e.g. {{index .args 0}} in a var?
+		// yes, that was in the requirements: "Global variables ... support ... CLI args substitution"
+		// But to avoid infinite recursion, we probably shouldn't pass "vars" into this render.
+		t, err := renderTemplate(val, args, nil)
+		if err == nil {
+			val = t
+		}
+		resolved[k] = val
+	}
+	return resolved
 }

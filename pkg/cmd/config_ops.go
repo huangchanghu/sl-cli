@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"path/filepath"
 	"sl-cli/internal/config"
 
 	"github.com/spf13/cobra"
@@ -22,22 +23,21 @@ var checkCmd = &cobra.Command{
 	Short: "检查配置文件的语法和逻辑错误",
 	Run: func(cmd *cobra.Command, args []string) {
 		// 1. 尝试查找并读取配置
-		if err := viper.ReadInConfig(); err != nil {
-			if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-				fmt.Println("❌ Config file not found.")
-				fmt.Println("Run 'sl-cli config init' to generate one.")
-			} else {
-				fmt.Printf("❌ YAML Syntax Error: %s\n", err)
-			}
+		configFile := viper.ConfigFileUsed()
+		if configFile == "" {
+			// 如果 viper 没找到，尝试手动找一下默认位置，方便 init 之前检查?
+			// 不，check 应该基于已有的 path。如果 viper 没找到，说明 initConfig 没找到文件。
+			fmt.Println("❌ Config file not found.")
+			fmt.Println("Run 'sl-cli config init' to generate one.")
 			os.Exit(1)
 		}
 
-		fmt.Printf("✅ Config file found: %s\n", viper.ConfigFileUsed())
+		fmt.Printf("✅ Config file found: %s\n", configFile)
 
-		// 2. 尝试解析结构体
-		var cfg config.Config
-		if err := viper.Unmarshal(&cfg); err != nil {
-			fmt.Printf("❌ Config Parsing Error: %s\n", err)
+		// 2. 尝试解析结构体 (使用 LoadConfig 支持 import)
+		cfg, err := config.LoadConfig(configFile)
+		if err != nil {
+			fmt.Printf("❌ Config Loading Error: %s\n", err)
 			os.Exit(1)
 		}
 
@@ -133,7 +133,19 @@ var initCmd = &cobra.Command{
 	Use:   "init",
 	Short: "在当前目录生成默认的 sl-cli.yaml",
 	Run: func(cmd *cobra.Command, args []string) {
-		filename := "sl-cli.yaml"
+		home, err := os.UserHomeDir()
+		if err != nil {
+			fmt.Println("Error getting home dir:", err)
+			return
+		}
+
+		configDir := filepath.Join(home, ".config", "sl-cli")
+		if err := os.MkdirAll(configDir, 0755); err != nil {
+			fmt.Printf("❌ Failed to create config dir: %s\n", err)
+			return
+		}
+
+		filename := filepath.Join(configDir, "sl-cli.yaml")
 		if _, err := os.Stat(filename); err == nil {
 			fmt.Printf("⚠️  File '%s' already exists. Aborting to prevent overwrite.\n", filename)
 			return
@@ -161,6 +173,15 @@ const defaultConfigContent = `
 # sl-cli Configuration File
 # -------------------------
 # This file defines the dynamic commands available in sl-cli.
+
+# Imports allows splitting config into multiple files
+# imports:
+#   - extra_commands.yaml
+
+# Global Variables (available in templates as {{.vars.KEY}})
+# vars:
+#   token: "secret"
+#   env: "${APP_ENV}"
 
 commands:
   # ------------------------------------------------------------------

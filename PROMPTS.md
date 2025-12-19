@@ -74,3 +74,8 @@ This document records the chronological prompts used to generate the `sl-cli` pr
 
 **Prompt 14: Documentation**
 > 生成README.md文件
+
+** Prompt 15: config manager refactor **
+> 1. 将当前的单一配置文件改为支持拆分多配置文件：主文件+多个子文件，支持将命令拆分到子文件中然后在主文件中导入
+> 2. 增加默认配置文件目录:$HOME/.config/sl-cli，安装后默认配置文件放置在该目录, 主配置文件sl-cli.yaml
+> 3. 配置文件中增加全局变量配置，在命令配置中可以引用和进行模版替换，如{{.vars.token}}。全局变量本身也要支持环境变量和命令行参数替换

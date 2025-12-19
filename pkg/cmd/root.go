@@ -58,10 +58,9 @@ func preParseConfigFlag() {
 
 func init() {
 	// 定义全局标志
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "配置文件 (默认为 $HOME/.sl-cli.yaml)")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "配置文件 (默认为 $HOME/.config/sl-cli/sl-cli.yaml)")
 }
 
-// initConfig 读取配置文件和环境变量
 func initConfig() {
 	if cfgFile != "" {
 		viper.SetConfigFile(cfgFile)
@@ -72,18 +71,23 @@ func initConfig() {
 			os.Exit(1)
 		}
 
+		// New default path: ~/.config/sl-cli/sl-cli.yaml
+		configDir := filepath.Join(home, ".config", "sl-cli")
+		defaultConfigPath := filepath.Join(configDir, "sl-cli.yaml")
+
+		// Legacy paths (fallback)
 		currentDirConfig := "sl-cli.yaml"
 		homeDirDotConfig := filepath.Join(home, ".sl-cli.yaml")
 
-		if _, err := os.Stat(currentDirConfig); err == nil {
-			// 发现当前目录下有 sl-cli.yaml
+		if _, err := os.Stat(defaultConfigPath); err == nil {
+			viper.SetConfigFile(defaultConfigPath)
+		} else if _, err := os.Stat(currentDirConfig); err == nil {
 			viper.SetConfigFile(currentDirConfig)
 		} else if _, err := os.Stat(homeDirDotConfig); err == nil {
-			// 发现 Home 目录下有 .sl-cli.yaml
 			viper.SetConfigFile(homeDirDotConfig)
 		} else {
-			// 兜底策略：如果上面都没找到，保持原来的搜索逻辑
-			// 这样可以支持 $HOME/sl-cli.yaml (非隐藏)
+			// Set default search path for viper (though we might not strictly need it if we use LoadConfig)
+			viper.AddConfigPath(configDir)
 			viper.AddConfigPath(".")
 			viper.AddConfigPath(home)
 			viper.SetConfigName("sl-cli")
@@ -94,21 +98,27 @@ func initConfig() {
 
 	viper.AutomaticEnv()
 
-	// 读取配置文件，忽略错误，因为如果没配置文件，我们只运行静态命令即可
-	viper.ReadInConfig()
+	// Locate the file using Viper to get the path, but we might load it manually later
+	if err := viper.ReadInConfig(); err == nil {
+		// fmt.Println("Using config file:", viper.ConfigFileUsed())
+	}
 }
 
 // loadDynamicCommands 读取配置并构建命令树
 func loadDynamicCommands() {
-	var cfg config.Config
-	if err := viper.Unmarshal(&cfg); err != nil {
-		// 配置文件格式错误时提示
-		fmt.Printf("Error parsing config: %s\n", err)
+	configFile := viper.ConfigFileUsed()
+	if configFile == "" {
+		return
+	}
+
+	cfg, err := config.LoadConfig(configFile)
+	if err != nil {
+		fmt.Printf("Error loading config: %s\n", err)
 		return
 	}
 
 	for _, cmdCfg := range cfg.Commands {
-		cmd := buildCommand(cmdCfg)
+		cmd := buildCommand(cmdCfg, cfg.Vars)
 		// 重复添加的命令丢弃，如果有子命令则将子命令追加到已存在命令的字命令中
 		deplicated := false
 		for _, c := range rootCmd.Commands() {
@@ -127,13 +137,13 @@ func loadDynamicCommands() {
 }
 
 // buildCommand 递归构建命令
-func buildCommand(cfg config.CommandConfig) *cobra.Command {
+func buildCommand(cfg config.CommandConfig, vars map[string]string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   cfg.Name,
 		Short: cfg.Usage,
 		// DisableFlagParsing: true, // 可选：如果希望由 shell/system 接管所有参数解析，可以开启此项
 		Run: func(c *cobra.Command, args []string) {
-			if err := executor.Run(cfg, args); err != nil {
+			if err := executor.Run(cfg, args, vars); err != nil {
 				fmt.Printf("Execution failed: %s\n", err)
 				os.Exit(1)
 			}
@@ -147,7 +157,7 @@ func buildCommand(cfg config.CommandConfig) *cobra.Command {
 	}
 
 	for _, subCfg := range cfg.SubCommands {
-		subCmd := buildCommand(subCfg)
+		subCmd := buildCommand(subCfg, vars)
 		cmd.AddCommand(subCmd)
 	}
 

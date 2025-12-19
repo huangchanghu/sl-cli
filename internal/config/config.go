@@ -1,8 +1,9 @@
 package config
 
-// Config 对应整个配置文件的根结构
 type Config struct {
-	Commands []CommandConfig `mapstructure:"commands"`
+	Imports  []string          `mapstructure:"imports"`
+	Vars     map[string]string `mapstructure:"vars"` // Global variables
+	Commands []CommandConfig   `mapstructure:"commands"`
 }
 
 // CommandConfig 定义单个命令的配置
