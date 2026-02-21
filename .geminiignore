@@ -1,0 +1,8 @@
+.git/
+node_modules/
+vendor/
+bin/
+man1/
+sl-cli
+*.log
+.DS_Store
