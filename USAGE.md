@@ -48,7 +48,10 @@ sl-cli gen-man [output-dir]
 
 ## 🛠️ 配置文件
 
-`sl-cli` 会优先读取当前目录下的 `sl-cli.yaml`，如果没有则读取 `$HOME/.sl-cli.yaml`。
+`sl-cli` 会按以下顺序查找配置文件：
+1. `$HOME/.config/sl-cli/sl-cli.yaml`（默认位置）
+2. 当前目录下的 `sl-cli.yaml`
+3. `$HOME/.sl-cli.yaml`（旧版兼容）
 
 ### 配置文件格式
 
@@ -63,9 +66,9 @@ commands:
       method: "GET"
       headers:
         Authorization: "Bearer ${MY_API_TOKEN}"
-      pipe:
-        command: "jq"
-        args: ["."]
+      pipes:
+        - command: "jq"
+          args: ["."]
 
   # Shell 脚本执行示例
   - name: "deploy"
@@ -132,9 +135,9 @@ commands:
   api:
     url: "https://goweather.herokuapp.com/weather/{{index .args 0}}"
     method: "GET"
-    pipe:
-      command: "jq"
-      args: ["."]
+    pipes:
+      - command: "jq"
+        args: ["."]
 ```
 
 ### Shell 脚本
