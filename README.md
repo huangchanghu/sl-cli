@@ -34,7 +34,7 @@
 
 ```bash
 # 1. 克隆项目
-git clone https://github.com/your-repo/sl-cli.git
+git clone https://github.com/huangchanghu/sl-cli.git
 cd sl-cli
 
 # 2. 安装 (需要 sudo 权限以写入 /usr/local/bin)
@@ -50,7 +50,10 @@ sl-cli version
 
 ## ⚙️ 配置指南
 
-`sl-cli` 会优先读取当前目录下的 `sl-cli.yaml`，如果没有则读取 `$HOME/.sl-cli.yaml`。
+`sl-cli` 会按以下顺序查找配置文件：
+1. `$HOME/.config/sl-cli/sl-cli.yaml`（默认位置）
+2. 当前目录下的 `sl-cli.yaml`
+3. `$HOME/.sl-cli.yaml`（旧版兼容）
 
 ### 快速上手
 
@@ -77,9 +80,9 @@ commands:
       headers:
         Authorization: "Bearer ${MY_API_TOKEN}" # 读取环境变量
       # [高级特性] 将 API 结果作为 stdin 传给 jq 命令
-      pipe:
-        command: "jq"
-        args: ["."]
+      pipes:
+        - command: "jq"
+          args: ["."]
 
   # ------------------------------------------------------------------
   # 场景 2: 执行多行 Shell 脚本
