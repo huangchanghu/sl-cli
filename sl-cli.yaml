@@ -1,66 +1,57 @@
-commands:
-  # 1. 测试 HTTP GET (带参数)
-  # 使用方法: ./sl-cli ip
-  - name: "ip"
-    usage: "查询当前公网 IP"
-    type: "http"
-    api:
-      url: "https://httpbin.org/ip"
-      method: "GET"
+# ============================================================================
+# sl-cli 主配置文件
+# ----------------------------------------------------------------------------
+# 完整的命令示例请参考同目录下的 sl-cli.example.yaml。
+# 本文件通过 imports 引入示例，按需在下方追加自定义命令即可。
+# ============================================================================
 
-  # 2. 测试 HTTP POST (带参数和 Header)
-  # 使用方法: ./sl-cli echo "Hello World"
-  - name: "echo"
-    usage: "测试 HTTP Post"
-    type: "http"
-    api:
-      url: "https://httpbin.org/post"
-      method: "POST"
-      headers:
-        X-Custom-Header: "sl-cli-client"
-      body: '{"message": "{{index .args 0}}"}' # 获取第一个参数
+# ---- 配置文件查找顺序 -------------------------------------------------------
+# sl-cli 启动时按以下顺序查找主配置 (找到第一个即停止):
+#   1. --config <path>                       命令行显式指定
+#   2. $HOME/.config/sl-cli/sl-cli.yaml      推荐位置 (config init 写入此处)
+#   3. ./sl-cli.yaml                         当前工作目录
+#   4. $HOME/.sl-cli.yaml                    旧版兼容路径
 
-  # 3. 测试 Shell (带参数)
-  # 使用方法: ./sl-cli greet "Mike"
-  - name: "greet"
-    usage: "Shell 脚本问候"
-    type: "shell"
-    script: |
-      echo "Start Shell Script..."
-      NAME="{{index .args 0}}"
-      if [ -z "$NAME" ]; then
-        echo "Hello, Stranger!"
-      else
-        echo "Hello, $NAME!"
-      fi
+# ---- 编写规则 ---------------------------------------------------------------
+# 1. 顶层字段:
+#      imports:  []string         - 引入其它 YAML 文件 (相对路径基于本文件目录)
+#      vars:     map[string]string - 全局变量, 模板中通过 {{.vars.KEY}} 引用
+#      commands: []Command        - 命令列表
+#
+# 2. 命令字段:
+#      name:        命令名 (必填)
+#      usage:       帮助文本中的简短描述
+#      type:        http | shell | system  (与 subcommands 二选一)
+#      subcommands: 嵌套子命令 (与 type 二选一; 形成命令组)
+#
+# 3. 类型专属字段:
+#      type: http   -> api.url (必填), api.method, api.headers, api.body, api.pipes
+#      type: shell  -> script (必填, 多行字符串, 由 /bin/sh -c 执行)
+#      type: system -> command (必填), args (基础参数, 用户输入会追加在后)
+#
+# 4. 模板与变量替换 (适用于 url / body / headers / script / args):
+#      {{index .args 0}}     第 N 个命令行参数 (从 0 开始)
+#      {{.vars.KEY}}         引用全局 vars
+#      ${ENV} / $ENV         环境变量 (模板渲染后再展开)
+#      注意: 位置参数必须用 {{index .args N}}, 不能写成 {{.args.N}}
+#
+# 5. HTTP 管道 (api.pipes):
+#      仅当响应状态码为 2xx 时才进入管道; 非 2xx 会直接输出 body 并报错,
+#      避免 jq 等命令解析错误页面失败。多个管道按顺序流式串联。
+#
+# 6. 参数透传:
+#      shell / system 类型默认禁用 Cobra 的 flag 解析,
+#      因此 `sl-cli ls -la` 中的 -la 会被原样传给底层命令。
+#
+# 7. 修改本文件后, 务必运行:  sl-cli config check
+# ============================================================================
 
-  # 4. 测试 System 命令 (透传参数)
-  # 使用方法: ./sl-cli ls -la
-  - name: "ls"
-    usage: "列出当前目录文件"
-    type: "system"
-    command: "ls"
-    args: ["-G"] # Mac 上 -G 启用彩色输出
-    # 5. 测试管道功能
-    # 使用方法: ./sl-cli weather-fmt "London"
-  - name: "weather"
-    usage: "查询天气并用 jq 格式化输出"
-    type: "http"
-    api:
-      url: "https://goweather.herokuapp.com/weather/{{index .args 0}}"
-      method: "GET"
-      # 新增 pipe 配置
-      pipes:
-        - command: "jq"
-          args: ["."] # "." 表示格式化整个 JSON，也可以用 ".temperature" 提取字段
-        - command: "grep"
-          args: ["temperature"]
+imports:
+  - sl-cli.example.yaml
 
-  - name: "config"
-    usage: "配置文件管理"
-    subcommands:
-      - name: "show"
-        usage: "查看配置文件"
-        type: "system"
-        command: "bat"
-        args: ["$HOME/.sl-cli.yaml"]
+# 在此处追加你自己的全局变量
+# vars:
+#   my_token: "${MY_API_TOKEN}"
+
+# 在此处追加你自己的命令 (与 imports 中的命令同名时, 子命令会合并到已存在命令下)
+commands: []

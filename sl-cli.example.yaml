@@ -1,0 +1,126 @@
+# ============================================================================
+# sl-cli 示例配置文件
+# ----------------------------------------------------------------------------
+# 复制到 $HOME/.config/sl-cli/sl-cli.yaml 后即可使用，或通过 --config 指定。
+# 修改后请运行 `sl-cli config check` 验证语法。
+# ============================================================================
+
+# ---- 配置拆分：从其它文件导入命令 ------------------------------------------
+# 路径相对于当前文件所在目录；支持多级嵌套，自动检测循环导入。
+# imports:
+#   - commands/git.yaml
+#   - commands/k8s.yaml
+
+# ---- 全局变量 -------------------------------------------------------------
+# 在模板中通过 {{.vars.KEY}} 引用。
+# 变量值本身支持环境变量展开 (${ENV}) 和命令行参数模板 ({{index .args 0}})。
+vars:
+  api_base: "https://httpbin.org"
+  token: "${MY_API_TOKEN}"           # 从环境变量读取
+  default_user: "guest"
+
+commands:
+  # ==========================================================================
+  # 1. HTTP - 最简 GET 请求
+  # ==========================================================================
+  - name: "ip"
+    usage: "查询当前公网 IP"
+    type: "http"
+    api:
+      url: "{{.vars.api_base}}/ip"
+      method: "GET"
+
+  # ==========================================================================
+  # 2. HTTP - POST + Header + Body (含环境变量与参数模板)
+  #    用法: sl-cli echo "Hello"
+  # ==========================================================================
+  - name: "echo"
+    usage: "向 httpbin 发送一条消息 (用法: sl-cli echo <message>)"
+    type: "http"
+    api:
+      url: "{{.vars.api_base}}/post"
+      method: "POST"
+      headers:
+        Content-Type: "application/json"
+        X-Custom-Header: "sl-cli-client"
+        Authorization: "Bearer {{.vars.token}}"
+      body: |
+        {
+          "message": "{{index .args 0}}",
+          "user": "{{.vars.default_user}}"
+        }
+
+  # ==========================================================================
+  # 3. HTTP - 多级管道处理 (response -> jq -> grep -> stdout)
+  #    仅当状态码 2xx 时才进入管道，避免 jq 解析错误页报错。
+  #    用法: sl-cli weather London
+  # ==========================================================================
+  - name: "weather"
+    usage: "查询城市天气并格式化 (用法: sl-cli weather <city>)"
+    type: "http"
+    api:
+      url: "https://goweather.herokuapp.com/weather/{{index .args 0}}"
+      method: "GET"
+      pipes:
+        - command: "jq"
+          args: ["."]
+        - command: "grep"
+          args: ["temperature"]
+
+  # ==========================================================================
+  # 4. Shell - 多行脚本，支持交互式输入
+  #    用法: sl-cli greet Mike
+  # ==========================================================================
+  - name: "greet"
+    usage: "Shell 脚本问候 (用法: sl-cli greet [name])"
+    type: "shell"
+    script: |
+      NAME="{{index .args 0}}"
+      if [ -z "$NAME" ]; then
+        echo "Hello, Stranger!"
+      else
+        echo "Hello, $NAME!"
+      fi
+      echo "Current dir: $(pwd)"
+
+  # ==========================================================================
+  # 5. System - 系统命令别名 (参数透传)
+  #    配置中的 args 是基础参数，命令行追加参数会拼接在后面。
+  #    用法: sl-cli ll -h        => 实际执行: ls -l -a -G -h
+  # ==========================================================================
+  - name: "ll"
+    usage: "列出文件详情 (别名 ls -laG)"
+    type: "system"
+    command: "ls"
+    args: ["-l", "-a", "-G"]
+
+  # ==========================================================================
+  # 6. System - Git Log 美化别名
+  #    用法: sl-cli gl -n 10
+  # ==========================================================================
+  - name: "gl"
+    usage: "优雅的 Git Log"
+    type: "system"
+    command: "git"
+    args: ["log", "--graph", "--oneline", "--decorate", "--all"]
+
+  # ==========================================================================
+  # 7. 子命令分组 (subcommands)
+  #    用法: sl-cli dev info / sl-cli dev ports
+  # ==========================================================================
+  - name: "dev"
+    usage: "开发者工具集"
+    subcommands:
+      - name: "info"
+        usage: "显示开发环境信息"
+        type: "shell"
+        script: |
+          echo "Go:    $(go version 2>/dev/null || echo 'not installed')"
+          echo "Node:  $(node -v 2>/dev/null || echo 'not installed')"
+          echo "Shell: $SHELL"
+
+      - name: "ports"
+        usage: "列出本机监听端口"
+        type: "system"
+        command: "lsof"
+        args: ["-iTCP", "-sTCP:LISTEN", "-P", "-n"]
