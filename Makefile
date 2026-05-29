@@ -1,12 +1,13 @@
 BINARY_NAME=sl-cli
 INSTALL_PATH=/usr/local/bin
 MAN_PATH=/usr/local/share/man/man1
+CONFIG_DIR=$(HOME)/.config/sl-cli
 
 # 探测当前 Shell 类型 (zsh 或 bash)
 # 如果探测失败，默认 fallback 到 zsh (Mac 默认)
 SHELL_TYPE := $(shell basename $$SHELL)
 
-.PHONY: all build clean install install-completion install-man gen-man
+.PHONY: all build clean install install-completion install-man install-config gen-man
 
 all: build
 
@@ -27,11 +28,28 @@ gen-man: build
 	@./$(BINARY_NAME) gen-man ./man1
 
 # install 依赖 build，安装二进制文件后，尝试安装补全
-install: build install-man
+install: build install-man install-config
 	@echo "Installing binary to $(INSTALL_PATH)..."
 	@sudo mv $(BINARY_NAME) $(INSTALL_PATH)/$(BINARY_NAME)
 	@echo "Binary installed."
 	@$(MAKE) install-completion
+
+# 安装默认配置文件到 $HOME/.config/sl-cli (已存在则跳过)
+install-config:
+	@echo "Provisioning config files to $(CONFIG_DIR)..."
+	@mkdir -p $(CONFIG_DIR)
+	@if [ -f "$(CONFIG_DIR)/sl-cli.yaml" ]; then \
+		echo "  ⚠️  $(CONFIG_DIR)/sl-cli.yaml already exists, skipping."; \
+	else \
+		cp sl-cli.yaml $(CONFIG_DIR)/sl-cli.yaml; \
+		echo "  ✅ Installed sl-cli.yaml"; \
+	fi
+	@if [ -f "$(CONFIG_DIR)/sl-cli.example.yaml" ]; then \
+		echo "  ⚠️  $(CONFIG_DIR)/sl-cli.example.yaml already exists, skipping."; \
+	else \
+		cp sl-cli.example.yaml $(CONFIG_DIR)/sl-cli.example.yaml; \
+		echo "  ✅ Installed sl-cli.example.yaml"; \
+	fi
 
 # 安装 Man pages
 install-man: gen-man

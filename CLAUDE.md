@@ -5,9 +5,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build & Install
 
 - `make build` — produces `./sl-cli` in repo root (`go build -o sl-cli cmd/sl-cli/main.go`).
-- `make install` — builds, generates man pages, copies binary to `/usr/local/bin`, installs shell completion for the detected `$SHELL` (zsh or bash). Uses `sudo`.
+- `make install` — builds, generates man pages, copies binary to `/usr/local/bin`, installs shell completion for the detected `$SHELL` (zsh or bash), and provisions default config files (`sl-cli.yaml` + `sl-cli.example.yaml`) into `$HOME/.config/sl-cli/`. Existing config files are **not** overwritten — the target prints a skip message instead. Uses `sudo` for binary/man/completion writes; the config step runs as the invoking user against `$HOME`.
 - `make -f Makefile-termux install` — Android/Termux variant; same flow but targets `/data/data/com.termux/files/...` and runs without `sudo`. **Use this on Termux instead of the plain `Makefile`.**
-- `make uninstall` — removes binary, completions, and all `sl-cli*.1` man pages.
+- `make install-config` — config-only provisioning step (can be run standalone if you want to drop in updated config templates without rebuilding the binary).
+- `make uninstall` — removes binary, completions, and all `sl-cli*.1` man pages. **Does not touch `$HOME/.config/sl-cli/`** — user config is preserved across reinstalls.
 - `make clean` — removes built binary and `./man1/`.
 - `go build ./...` / `go vet ./...` — for quick correctness checks during development. There is no test suite yet.
 - `./sl-cli config check` — validates the active config file (syntax + per-type field requirements). Run this after editing any YAML.
@@ -22,11 +23,11 @@ The `.go-version` file pins Go 1.24; `go.mod` requires `go 1.24.0` with `toolcha
 
 `Execute()` runs three phases in order — each later phase depends on the previous one:
 1. `preParseConfigFlag()` — manually scans `os.Args` for `--config <path>` / `--config=<path>` **before** Cobra parses anything. This is needed because dynamic commands have to be registered before `rootCmd.Execute()` runs, but Cobra's normal flag parsing happens inside `Execute()`.
-2. `initConfig()` — picks the config file in this order:
-   1. `--config` value (if set)
-   2. `$HOME/.config/sl-cli/sl-cli.yaml` (canonical location, what `config init` writes)
-   3. `./sl-cli.yaml` (cwd)
-   4. `$HOME/.sl-cli.yaml` (legacy fallback)
+2. `initConfig()` — picks the config file:
+   1. `--config <path>` if explicitly passed
+   2. Otherwise the canonical `$HOME/.config/sl-cli/sl-cli.yaml`
+
+   There is no fallback to `./sl-cli.yaml` or `$HOME/.sl-cli.yaml` — those legacy locations were removed in favor of a single source of truth provisioned by `make install-config`. If the canonical file is missing, `viper.ConfigFileUsed()` returns empty and `loadDynamicCommands()` silently skips (only built-in Go commands remain).
 3. `loadDynamicCommands()` — parses the YAML via `internal/config.LoadConfig`, then builds Cobra commands via `buildCommand`. **Duplicate-name handling:** if a dynamic command's name already exists on `rootCmd` (e.g. the built-in `config`), its subcommands are merged into the existing command rather than overwriting it. This is how the example `sl-cli.yaml` adds a `config show` subcommand alongside the built-in `config init`/`config check`.
 
 ### Config loader (`internal/config/loader.go`)

@@ -71,26 +71,10 @@ func initConfig() {
 			os.Exit(1)
 		}
 
-		// New default path: ~/.config/sl-cli/sl-cli.yaml
-		configDir := filepath.Join(home, ".config", "sl-cli")
-		defaultConfigPath := filepath.Join(configDir, "sl-cli.yaml")
-
-		// Legacy paths (fallback)
-		currentDirConfig := "sl-cli.yaml"
-		homeDirDotConfig := filepath.Join(home, ".sl-cli.yaml")
-
+		// Only canonical path: ~/.config/sl-cli/sl-cli.yaml
+		defaultConfigPath := filepath.Join(home, ".config", "sl-cli", "sl-cli.yaml")
 		if _, err := os.Stat(defaultConfigPath); err == nil {
 			viper.SetConfigFile(defaultConfigPath)
-		} else if _, err := os.Stat(currentDirConfig); err == nil {
-			viper.SetConfigFile(currentDirConfig)
-		} else if _, err := os.Stat(homeDirDotConfig); err == nil {
-			viper.SetConfigFile(homeDirDotConfig)
-		} else {
-			// Set default search path for viper (though we might not strictly need it if we use LoadConfig)
-			viper.AddConfigPath(configDir)
-			viper.AddConfigPath(".")
-			viper.AddConfigPath(home)
-			viper.SetConfigName("sl-cli")
 		}
 
 		viper.SetConfigType("yaml")
@@ -98,10 +82,7 @@ func initConfig() {
 
 	viper.AutomaticEnv()
 
-	// Locate the file using Viper to get the path, but we might load it manually later
-	if err := viper.ReadInConfig(); err == nil {
-		// fmt.Println("Using config file:", viper.ConfigFileUsed())
-	}
+	_ = viper.ReadInConfig()
 }
 
 // loadDynamicCommands 读取配置并构建命令树
