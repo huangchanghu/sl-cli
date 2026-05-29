@@ -33,7 +33,7 @@ install: build install-config
 	@echo "Installing binary to $(INSTALL_PATH)..."
 	@mv $(BINARY_NAME) $(INSTALL_PATH)/$(BINARY_NAME)
 	@echo "Binary installed."
-	@$(MAKE) install-completion
+	@$(MAKE) -f Makefile-termux install-completion
 
 # 安装默认配置文件到 $HOME/.config/sl-cli (已存在则跳过)
 install-config:
