@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/subosito/gotenv"
 )
 
 var cfgFile string
@@ -83,6 +84,29 @@ func initConfig() {
 	viper.AutomaticEnv()
 
 	_ = viper.ReadInConfig()
+
+	loadDotEnv()
+}
+
+// loadDotEnv 从配置文件所在目录加载 .env 到进程环境变量。
+// 用于把敏感值（token、idcode 等）与 YAML 分离，避免明文写在配置里。
+// 使用 gotenv.Load（非覆盖式）：shell 中已导出的同名环境变量优先，.env 仅补充缺失项。
+func loadDotEnv() {
+	var dir string
+	if used := viper.ConfigFileUsed(); used != "" {
+		dir = filepath.Dir(used)
+	} else if home, err := os.UserHomeDir(); err == nil {
+		dir = filepath.Join(home, ".config", "sl-cli")
+	}
+	if dir == "" {
+		return
+	}
+
+	envPath := filepath.Join(dir, ".env")
+	if _, err := os.Stat(envPath); err != nil {
+		return // .env 不存在则跳过
+	}
+	_ = gotenv.Load(envPath)
 }
 
 // loadDynamicCommands 读取配置并构建命令树
