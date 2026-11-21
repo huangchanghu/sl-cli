@@ -50,6 +50,14 @@ In `buildCommand`, **`DisableFlagParsing` is set to `true` for `shell` and `syst
 
 Templates receive a single map: `{"args": []string, "vars": map[string]string}`. The canonical positional-arg access is `{{index .args 0}}` (not `{{.args.0}}` — that doesn't work in `text/template`). Env expansion runs **after** template rendering, so a template can output `${VAR}` for later substitution.
 
+### Dynamic argument completion
+
+Any dynamic command may set `completion:` — either a script string or an object (`script`, `timeout` default `3s`, `filter` `prefix|none`, `file_fallback`, `no_space`; see `config.CompletionConfig`). `buildCommand` wires it to Cobra's `ValidArgsFunction`, so the installed shell completion (which calls `sl-cli __complete ...` at TAB time) picks it up without reinstalling. `executor.Complete` runs `/bin/sh -c <script> sl-cli <args...>`: already-typed args are **shell positional params** (`$#` = index of the arg being completed), the partial word is `$SL_CLI_COMP_CUR`, the command path is `$SL_CLI_COMP_CMD`. The script is still template-rendered (for `{{.vars.KEY}}`), but args should be read via `$1` rather than `{{index .args 0}}` because partial input can break shell quoting. Each stdout line is a candidate (`value\tdescription` allowed); failure/timeout yields no candidates and only logs via `cobra.CompDebugln`. The script runs in its own process group so a timeout also kills pipeline children. Since `shell`/`system` disable flag parsing, Cobra passes raw args (flags included) — even a `--config` placed before the command name ends up in `args`. `stripConfigFlag` removes sl-cli's own first `--config` (same rule as `preParseConfigFlag`) before calling the completion script.
+
+**Anything printed to stdout during startup pollutes `__complete` output** — write startup diagnostics to stderr.
+
+Note: `internal/config` is decoded by `gopkg.in/yaml.v3`, which only honors `yaml:` tags; the existing `mapstructure:` tags are ignored (keys default to the lowercased field name). New multi-word fields need an explicit `yaml:"..."` tag.
+
 ## Adding commands
 
 - **Native Go command**: add a file under `pkg/cmd/`, define a `cobra.Command`, register it in `init()` with `rootCmd.AddCommand(...)`. The package shares `rootCmd` across all files. See `pkg/cmd/version.go` for the minimal pattern. Then `make install`.

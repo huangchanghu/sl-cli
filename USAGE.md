@@ -111,6 +111,7 @@ commands:
 
 ### 4. 自动补全支持
 - 自动生成并安装 Zsh/Bash 自动补全脚本
+- 支持通过 `completion` 字段为动态命令的参数配置补全脚本（见下文「参数动态补全」）
 
 ### 5. Man Pages 文档生成
 - 自动生成并安装 Man Pages 文档
@@ -161,6 +162,55 @@ commands:
   args: ["-l", "-a", "-G"]
 ```
 
+### 参数动态补全
+给命令增加 `completion` 字段，按 TAB 时执行脚本，stdout 每行一个候选：
+
+```yaml
+# 简写：直接给一段脚本
+- name: "sw"
+  type: "system"
+  command: "git"
+  args: ["switch"]
+  completion: |
+    git branch --format='%(refname:short)'
+
+# 完整写法
+- name: "deploy"
+  type: "http"
+  api:
+    url: "{{.vars.api_base}}/deploy/{{index .args 0}}/{{index .args 1}}"
+    method: "POST"
+  completion:
+    script: |
+      case $# in
+        0) printf 'prod\t生产环境\nstaging\t预发环境\n' ;;
+        1) curl -s "{{.vars.api_base}}/services?env=$1" | jq -r '.[].name' ;;
+      esac
+    timeout: 5s          # 默认 3s，超时返回空候选
+    filter: prefix       # prefix(默认): 按当前输入前缀过滤; none: 原样返回
+    file_fallback: false # 无候选时是否回退到文件补全，默认 false
+    no_space: false      # 选中后不追加空格，默认 false
+```
+
+脚本输入：
+- `$#`：已输入的参数个数，即当前正在补全第几个参数（从 0 开始）
+- `$1..$n` / `"$@"`：已输入的参数（`shell`/`system` 类型下包含 `-n 5` 这类 flag 原文）
+- `$SL_CLI_COMP_CUR`：当前正在输入的词
+- `$SL_CLI_COMP_CMD`：完整命令路径，如 `sl-cli deploy`
+- 脚本同样经过模板渲染，可用 `{{.vars.KEY}}`；**参数请用 `$1` 而非 `{{index .args 0}}`**，补全时的半成品输入可能含引号等字符，直接拼进脚本会破坏语法
+
+脚本输出：每行一个候选，可写成 `值<TAB>描述`（zsh/fish 会显示描述）；脚本退出码非 0 或超时时不显示候选，也不报错。
+
+调试：
+
+```bash
+sl-cli __complete deploy prod ""                              # 最后一行 :N 是 directive
+BASH_COMP_DEBUG_FILE=/tmp/sl-comp.log sl-cli __complete deploy ""  # 查看脚本报错/超时日志
+```
+
+> 已安装的补全脚本是运行时调用 `sl-cli __complete` 的，新增或修改 `completion` 配置后无需重装补全。
+> 注意：按 TAB 也会执行脚本，`imports` 第三方配置前请确认其中的补全脚本可信。
+
 ## 🔧 开发扩展
 
 ### 添加原生 Go 命令
@@ -176,6 +226,7 @@ commands:
 - `api`: HTTP 相关配置
 - `script`: Shell 脚本内容
 - `command`/`args`: 系统命令配置
+- `completion`: 参数补全脚本（字符串简写，或包含 `script`/`timeout`/`filter`/`file_fallback`/`no_space` 的对象）
 
 ## 🗑 卸载
 ```bash

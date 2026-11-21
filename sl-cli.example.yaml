@@ -128,3 +128,36 @@ commands:
         type: "system"
         command: "lsof"
         args: ["-iTCP", "-sTCP:LISTEN", "-P", "-n"]
+
+  # ==========================================================================
+  # 8. 参数动态补全 (completion)
+  #    按 TAB 时执行脚本，stdout 每行一个候选，可写成 "值<TAB>描述"。
+  #    已输入的参数是脚本的 $1..$n，$# 即当前正在补全第几个参数 (从 0 开始)，
+  #    当前正在输入的词在 $SL_CLI_COMP_CUR 中。
+  #    调试: sl-cli __complete sw ""
+  # ==========================================================================
+  - name: "sw"
+    usage: "切换 git 分支 (用法: sl-cli sw <branch>)"
+    type: "system"
+    command: "git"
+    args: ["switch"]
+    # 简写：直接给一段脚本
+    completion: |
+      git branch --format='%(refname:short)' 2>/dev/null
+
+  - name: "greet-to"
+    usage: "按语言问候 (用法: sl-cli greet-to <lang> <name>)"
+    type: "shell"
+    script: |
+      echo "[{{index .args 0}}] Hello, {{index .args 1}}!"
+    # 完整写法
+    completion:
+      script: |
+        case $# in
+          0) printf 'zh\t中文\nen\tEnglish\nja\t日本語\n' ;;
+          1) printf '{{.vars.default_user}}\nAlice\nBob\n' ;;
+        esac
+      timeout: 2s          # 默认 3s，超时返回空候选
+      filter: prefix       # prefix(默认): 按当前输入前缀过滤; none: 原样返回
+      file_fallback: false # 无候选时是否回退到文件补全，默认 false
+      no_space: false      # 选中后不追加空格，默认 false

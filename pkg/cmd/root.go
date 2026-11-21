@@ -16,6 +16,9 @@ import (
 
 var cfgFile string
 
+// builtinCommands 记录加载动态命令前已注册的原生命令名，供 config check 识别同名合并
+var builtinCommands = map[string]bool{}
+
 // rootCmd 代表基础命令
 var rootCmd = &cobra.Command{
 	Use:   "sl-cli",
@@ -55,6 +58,19 @@ func preParseConfigFlag() {
 			break
 		}
 	}
+}
+
+// stripConfigFlag 去掉参数中第一个 --config <path> / --config=<path>（与 preParseConfigFlag 的识别规则一致）
+func stripConfigFlag(args []string) []string {
+	for i, arg := range args {
+		if arg == "--config" && i+1 < len(args) {
+			return append(append([]string{}, args[:i]...), args[i+2:]...)
+		}
+		if strings.HasPrefix(arg, "--config=") {
+			return append(append([]string{}, args[:i]...), args[i+1:]...)
+		}
+	}
+	return args
 }
 
 func init() {
@@ -118,8 +134,13 @@ func loadDynamicCommands() {
 
 	cfg, err := config.LoadConfig(configFile)
 	if err != nil {
-		fmt.Printf("Error loading config: %s\n", err)
+		// 写到 stderr：__complete 会把 stdout 每行当作补全候选
+		fmt.Fprintf(os.Stderr, "Error loading config: %s\n", err)
 		return
+	}
+
+	for _, c := range rootCmd.Commands() {
+		builtinCommands[c.Name()] = true
 	}
 
 	for _, cmdCfg := range cfg.Commands {
@@ -159,6 +180,32 @@ func buildCommand(cfg config.CommandConfig, vars map[string]string) *cobra.Comma
 	// 这样 -la 这种参数就会被原样放入 args 切片中，而不是被 Cobra 拦截报错
 	if cfg.Type == "system" || cfg.Type == "shell" {
 		cmd.DisableFlagParsing = true
+	}
+
+	// 配置了补全脚本时，按 TAB 由 cobra 的 __complete 回调执行脚本生成候选
+	if comp := cfg.Completion; comp != nil && comp.Script != "" {
+		cmd.ValidArgsFunction = func(c *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+			directive := cobra.ShellCompDirectiveNoFileComp
+			if comp.FileFallback {
+				directive = cobra.ShellCompDirectiveDefault
+			}
+			if comp.NoSpace {
+				directive |= cobra.ShellCompDirectiveNoSpace
+			}
+
+			// 禁用 flag 解析时 cobra 不会剔除 sl-cli 自身的 --config，需手动去掉
+			if c.DisableFlagParsing {
+				args = stripConfigFlag(args)
+			}
+
+			candidates, err := executor.Complete(comp, c.CommandPath(), args, toComplete, vars)
+			if err != nil {
+				// 补全失败不能打断用户输入，只写调试日志 (BASH_COMP_DEBUG_FILE)
+				cobra.CompDebugln(err.Error(), true)
+				return nil, directive
+			}
+			return candidates, directive
+		}
 	}
 
 	for _, subCfg := range cfg.SubCommands {

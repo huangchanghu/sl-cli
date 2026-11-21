@@ -3,8 +3,10 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"text/template"
 
 	"sl-cli/internal/config"
+	"sl-cli/internal/executor"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -43,6 +45,11 @@ var checkCmd = &cobra.Command{
 				cmdName = fmt.Sprintf("Command#%d", i+1)
 			}
 			errCount += validateCommand(c, cmdName)
+
+			// 与原生命令同名时只合并子命令，父级的 completion 会被丢弃
+			if builtinCommands[c.Name] && c.Completion != nil {
+				fmt.Printf("⚠️  Warning in [%s]: merged into built-in command, 'completion' is ignored.\n", cmdName)
+			}
 		}
 
 		if errCount > 0 {
@@ -105,7 +112,26 @@ func validateCommand(c config.CommandConfig, path string) int {
 		}
 	}
 
-	// 4. 递归校验子命令
+	// 4. 补全配置校验
+	if comp := c.Completion; comp != nil {
+		if comp.Script == "" {
+			fmt.Printf("❌ Error in [%s]: 'completion.script' is required.\n", path)
+			errs++
+		} else if _, err := template.New("completion").Parse(comp.Script); err != nil {
+			fmt.Printf("❌ Error in [%s]: Invalid template in 'completion.script': %s\n", path, err)
+			errs++
+		}
+		if _, err := executor.ParseCompletionTimeout(comp.Timeout); err != nil {
+			fmt.Printf("❌ Error in [%s]: %s\n", path, err)
+			errs++
+		}
+		if comp.Filter != "" && comp.Filter != "prefix" && comp.Filter != "none" {
+			fmt.Printf("❌ Error in [%s]: Invalid completion.filter '%s'. Must be prefix or none.\n", path, comp.Filter)
+			errs++
+		}
+	}
+
+	// 5. 递归校验子命令
 	for _, sub := range c.SubCommands {
 		subPath := path + " -> " + sub.Name
 		if sub.Name == "" {
