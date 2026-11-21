@@ -169,6 +169,10 @@ func buildCommand(cfg config.CommandConfig, vars map[string]string) *cobra.Comma
 		Short: cfg.Usage,
 		// DisableFlagParsing: true, // 可选：如果希望由 shell/system 接管所有参数解析，可以开启此项
 		Run: func(c *cobra.Command, args []string) {
+			// 禁用 flag 解析时 cobra 不会剔除 sl-cli 自身的 --config，需手动去掉
+			if c.DisableFlagParsing {
+				args = stripConfigFlag(args)
+			}
 			if err := executor.Run(cfg, args, vars); err != nil {
 				fmt.Printf("Execution failed: %s\n", err)
 				os.Exit(1)
