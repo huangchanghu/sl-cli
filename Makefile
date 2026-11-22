@@ -34,7 +34,8 @@ install: build install-man install-config
 	@echo "Binary installed."
 	@$(MAKE) install-completion
 
-# 安装默认配置文件到 $HOME/.config/sl-cli (已存在则跳过)
+# 安装默认配置文件到 $HOME/.config/sl-cli
+# sl-cli.yaml 是用户主配置，已存在则跳过；sl-cli.example.yaml 是参考样例，每次覆盖以同步最新示例
 install-config:
 	@echo "Provisioning config files to $(CONFIG_DIR)..."
 	@mkdir -p $(CONFIG_DIR)
@@ -44,11 +45,12 @@ install-config:
 		cp sl-cli.yaml $(CONFIG_DIR)/sl-cli.yaml; \
 		echo "  ✅ Installed sl-cli.yaml"; \
 	fi
-	@if [ -f "$(CONFIG_DIR)/sl-cli.example.yaml" ]; then \
-		echo "  ⚠️  $(CONFIG_DIR)/sl-cli.example.yaml already exists, skipping."; \
-	else \
-		cp sl-cli.example.yaml $(CONFIG_DIR)/sl-cli.example.yaml; \
-		echo "  ✅ Installed sl-cli.example.yaml"; \
+	@# 先删后拷：兼容早期用 sudo 安装、属主为 root 的旧文件
+	@rm -f $(CONFIG_DIR)/sl-cli.example.yaml
+	@cp sl-cli.example.yaml $(CONFIG_DIR)/sl-cli.example.yaml
+	@echo "  ✅ Installed sl-cli.example.yaml (reference file, always overwritten)"
+	@if grep -qsE "^[[:space:]]*-[[:space:]]*[\"']?sl-cli\.example\.yaml" "$(CONFIG_DIR)/sl-cli.yaml"; then \
+		echo "  ℹ️  sl-cli.yaml imports sl-cli.example.yaml, example commands are updated as well."; \
 	fi
 
 # 安装 Man pages
