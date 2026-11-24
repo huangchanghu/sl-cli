@@ -40,12 +40,6 @@ sl-cli config init
 sl-cli config check
 ```
 
-### 生成文档
-```bash
-# 生成 Man Pages 文档
-sl-cli gen-man [output-dir]
-```
-
 ## 🛠️ 配置文件
 
 `sl-cli` 会按以下顺序查找配置文件：
@@ -112,9 +106,6 @@ commands:
 ### 4. 自动补全支持
 - 自动生成并安装 Zsh/Bash 自动补全脚本
 - 支持通过 `completion` 字段为动态命令的参数配置补全脚本（见下文「参数动态补全」）
-
-### 5. Man Pages 文档生成
-- 自动生成并安装 Man Pages 文档
 
 ## 📖 示例配置详解
 

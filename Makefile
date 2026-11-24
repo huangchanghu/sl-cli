@@ -7,7 +7,7 @@ CONFIG_DIR=$(HOME)/.config/sl-cli
 # 如果探测失败，默认 fallback 到 zsh (Mac 默认)
 SHELL_TYPE := $(shell basename $$SHELL)
 
-.PHONY: all build clean install install-completion install-man install-config gen-man
+.PHONY: all build clean install install-completion install-config
 
 all: build
 
@@ -19,16 +19,9 @@ clean:
 	@echo "Cleaning..."
 	go clean
 	rm -f $(BINARY_NAME)
-	rm -rf ./man1
-
-# [新增] 生成 Man pages 的目标
-gen-man: build
-	@echo "Generating man pages..."
-	@mkdir -p man1
-	@./$(BINARY_NAME) gen-man ./man1
 
 # install 依赖 build，安装二进制文件后，尝试安装补全
-install: build install-man install-config
+install: build install-config
 	@echo "Installing binary to $(INSTALL_PATH)..."
 	@sudo mv $(BINARY_NAME) $(INSTALL_PATH)/$(BINARY_NAME)
 	@echo "Binary installed."
@@ -52,14 +45,6 @@ install-config:
 	@if grep -qsE "^[[:space:]]*-[[:space:]]*[\"']?sl-cli\.example\.yaml" "$(CONFIG_DIR)/sl-cli.yaml"; then \
 		echo "  ℹ️  sl-cli.yaml imports sl-cli.example.yaml, example commands are updated as well."; \
 	fi
-
-# 安装 Man pages
-install-man: gen-man
-	@echo "Installing man pages to $(MAN_PATH)..."
-	@sudo mkdir -p $(MAN_PATH)
-	@# 安装所有生成的 .1 文件
-	@sudo cp man1/*.1 $(MAN_PATH)/
-	@echo "✅ Man pages installed."
 
 install-completion:
 	@echo "Detecting shell: $(SHELL_TYPE)"
@@ -97,8 +82,8 @@ uninstall:
 	@sudo rm -f /usr/local/etc/bash_completion.d/$(BINARY_NAME)
 	@echo "  - Removed Bash completion"
 	
-	@# 4. 删除 Man pages (删除 sl-cli.1 以及 sl-cli-xxx.1 所有子命令文档)
+	@# 4. 清理旧版本安装的 Man pages (已不再生成，保留清理以免残留)
 	@sudo rm -f $(MAN_PATH)/$(BINARY_NAME)*.1
-	@echo "  - Removed Man pages"
+	@echo "  - Removed legacy man pages"
 	
 	@echo "✅ Uninstallation complete."

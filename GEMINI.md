@@ -24,7 +24,6 @@
 - **Build**: `make build`
 - **Install (Standard)**: `make install` (Requires sudo)
 - **Install (Termux)**: `make -f Makefile-termux install` (No sudo)
-- **Generate Man Pages**: `make gen-man`
 - **Check Config**: `./sl-cli config check`
 
 ## 🏗 Development Guidelines

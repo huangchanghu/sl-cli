@@ -5,11 +5,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build & Install
 
 - `make build` — produces `./sl-cli` in repo root (`go build -o sl-cli cmd/sl-cli/main.go`).
-- `make install` — builds, generates man pages, copies binary to `/usr/local/bin`, installs shell completion for the detected `$SHELL` (zsh or bash), and provisions default config files (`sl-cli.yaml` + `sl-cli.example.yaml`) into `$HOME/.config/sl-cli/`. An existing `sl-cli.yaml` is **not** overwritten (the target prints a skip message), but `sl-cli.example.yaml` is a reference file and is **always overwritten** (`rm -f` then `cp`, so a root-owned copy from an old sudo install is replaced too) so new examples ship with each install. Uses `sudo` for binary/man/completion writes; the config step runs as the invoking user against `$HOME`.
+- `make install` — builds, copies binary to `/usr/local/bin`, installs shell completion for the detected `$SHELL` (zsh or bash), and provisions default config files (`sl-cli.yaml` + `sl-cli.example.yaml`) into `$HOME/.config/sl-cli/`. An existing `sl-cli.yaml` is **not** overwritten (the target prints a skip message), but `sl-cli.example.yaml` is a reference file and is **always overwritten** (`rm -f` then `cp`, so a root-owned copy from an old sudo install is replaced too) so new examples ship with each install. Uses `sudo` for binary/completion writes; the config step runs as the invoking user against `$HOME`.
 - `make -f Makefile-termux install` — Android/Termux variant; same flow but targets `/data/data/com.termux/files/...` and runs without `sudo`. **Use this on Termux instead of the plain `Makefile`.**
 - `make install-config` — config-only provisioning step (can be run standalone to refresh `sl-cli.example.yaml` without rebuilding the binary).
-- `make uninstall` — removes binary, completions, and all `sl-cli*.1` man pages. **Does not touch `$HOME/.config/sl-cli/`** — user config is preserved across reinstalls.
-- `make clean` — removes built binary and `./man1/`.
+- `make uninstall` — removes binary and completions (plus any `sl-cli*.1` man pages left by older versions — man page generation has been dropped). **Does not touch `$HOME/.config/sl-cli/`** — user config is preserved across reinstalls.
+- `make clean` — removes built binary.
 - `go build ./...` / `go vet ./...` — for quick correctness checks during development. There is no test suite yet.
 - `./sl-cli config check` — validates the active config file (syntax + per-type field requirements). Run this after editing any YAML.
 
@@ -62,7 +62,3 @@ Note: `internal/config` is decoded by `gopkg.in/yaml.v3`, which only honors `yam
 
 - **Native Go command**: add a file under `pkg/cmd/`, define a `cobra.Command`, register it in `init()` with `rootCmd.AddCommand(...)`. The package shares `rootCmd` across all files. See `pkg/cmd/version.go` for the minimal pattern. Then `make install`.
 - **Dynamic command**: edit `~/.config/sl-cli/sl-cli.yaml` (or a file `imports:`'d from it). Run `sl-cli config check` to validate. No rebuild needed.
-
-## Hidden / build-tooling commands
-
-- `sl-cli gen-man [dir]` is `Hidden: true` (not in help output) — it's only used by the Makefile's `gen-man` target to populate `./man1/` before install.
