@@ -196,6 +196,8 @@ func buildCommand(cfg config.CommandConfig, vars map[string]string) *cobra.Comma
 			if comp.NoSpace {
 				directive |= cobra.ShellCompDirectiveNoSpace
 			}
+			// 保持脚本输出的顺序（如按时间倒序），否则 shell 会按字母重排；需要字母序可在脚本中 | sort
+			directive |= cobra.ShellCompDirectiveKeepOrder
 
 			// 禁用 flag 解析时 cobra 不会剔除 sl-cli 自身的 --config，需手动去掉
 			if c.DisableFlagParsing {
